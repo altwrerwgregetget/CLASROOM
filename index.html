@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="es" xml:lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FivePlay</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font-family: system-ui, sans-serif; color: #fff; }
+    iframe { width: 100%; height: 100%; border: 0; display: block; }
+    #bar { position: fixed; top: 8px; right: 8px; display: flex; gap: 6px; z-index: 10; opacity: .35; transition: opacity .2s; }
+    #bar:hover { opacity: 1; }
+    button { background: #222; color: #fff; border: 1px solid #444; border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 13px; }
+    button:hover { background: #333; }
+    #aviso { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: #000; z-index: 20; text-align: center; padding: 24px; }
+    #aviso div { max-width: 460px; line-height: 1.5; }
+    #aviso button { margin-top: 14px; font-size: 16px; padding: 10px 18px; }
+    #aviso small { display: block; margin-top: 12px; color: #999; }
+    #estado { position: fixed; bottom: 8px; left: 8px; font-size: 12px; color: #888; z-index: 10; }
+  </style>
+</head>
+<body>
+  <div id="bar">
+    <button id="reload" type="button">Recargar</button>
+    <button id="popup" type="button">Abrir en ventana aparte</button>
+  </div>
+
+  <div id="aviso">
+    <div>
+      <span id="motivo">Esta página no está aislada, así que el juego no puede correr dentro del iframe.</span>
+      <br />
+      <button id="popup2" type="button">Abrir el juego en ventana aparte</button>
+      <br />
+      <button id="cerrar" type="button">Intentar en iframe de todos modos</button>
+      <small>Para que funcione en el iframe, sube este archivo y coi-sw.js a la misma carpeta de un sitio con https.</small>
+    </div>
+  </div>
+
+  <div id="estado"></div>
+
+  <iframe id="game" src="about:blank"
+          allow="cross-origin-isolated; fullscreen; autoplay; gamepad; pointer-lock"
+          allowfullscreen="allowfullscreen"></iframe>
+
+  <script>
+  //<![CDATA[
+    var URL_JUEGO = "https://fiveplay.lol";
+    var frame = document.getElementById("game");
+    var aviso = document.getElementById("aviso");
+    var motivo = document.getElementById("motivo");
+    var estado = document.getElementById("estado");
+
+    function abrirVentana() {
+      var w = screen.availWidth, h = screen.availHeight;
+      window.open(URL_JUEGO, "fiveplay_aislado",
+        "popup,noopener,noreferrer,left=0,top=0,width=" + w + ",height=" + h);
+    }
+    function cargar() { frame.src = URL_JUEGO; }
+    function mostrarAviso(texto) {
+      if (texto) motivo.textContent = texto;
+      aviso.style.display = "flex";
+    }
+    function yaRecargo() { try { return sessionStorage.getItem("coi_reload") === "1"; } catch (e) { return false; } }
+    function marcarRecarga() { try { sessionStorage.setItem("coi_reload", "1"); } catch (e) {} }
+
+    function iniciar() {
+      if (window.crossOriginIsolated) {
+        estado.textContent = "Aislado: sí";
+        cargar();
+        return;
+      }
+      if (location.protocol === "file:") {
+        mostrarAviso("Abriste el archivo directo desde tu PC (file://). Así el navegador no permite el aislamiento que necesita el juego.");
+        return;
+      }
+      if (!window.isSecureContext || !("serviceWorker" in navigator)) {
+        mostrarAviso("La página necesita https (o localhost) para poder aislarse.");
+        return;
+      }
+      if (yaRecargo()) {
+        mostrarAviso("No se pudo activar el aislamiento en este navegador.");
+        return;
+      }
+      estado.textContent = "Activando aislamiento...";
+      navigator.serviceWorker.register("coi-sw.js").then(function (reg) {
+        function recargar() { marcarRecarga(); location.reload(); }
+        if (navigator.serviceWorker.controller) { recargar(); return; }
+        navigator.serviceWorker.addEventListener("controllerchange", recargar);
+        if (reg.active) recargar();
+      }).catch(function (err) {
+        mostrarAviso("No se encontró coi-sw.js junto a esta página (" + err.message + ").");
+      });
+    }
+
+    document.getElementById("popup").onclick = abrirVentana;
+    document.getElementById("popup2").onclick = abrirVentana;
+    document.getElementById("cerrar").onclick = function () { aviso.style.display = "none"; cargar(); };
+    document.getElementById("reload").onclick = function () {
+      frame.src = "about:blank";
+      setTimeout(cargar, 50);
+    };
+
+    iniciar();
+  //]]>
+  </script>
+</body>
+</html>
